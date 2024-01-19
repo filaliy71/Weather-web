@@ -4,6 +4,9 @@ const temperature = document.getElementById("temperature");
 const weatherIcon = document.getElementById("weatherIcon");
 const cityInput = document.getElementById("ppa");
 const body = document.querySelector("body");
+const cnameElement = document.getElementById("Cname");
+const windElement = document.getElementById("wind");
+const currentTimeElement = document.getElementById("currentTime");
 
 let results;
 
@@ -13,33 +16,43 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
-function findMyCoordinate() {
+async function findMyCoordinate() {
   if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const bdcAPI = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${position.coords.latitude}&longitude=${position.coords.longitude}`;
-        getAPI(bdcAPI);
-      },
-      (err) => {
-        alert(err.message);
-      }
-    );
+    try {
+      const position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject);
+      });
+      const bdcAPI = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${position.coords.latitude}&longitude=${position.coords.longitude}`;
+      getAPI(bdcAPI);
+    } catch (err) {
+      alert(err.message);
+    }
   } else {
     alert("Geolocation is not supported");
   }
 }
 
 function getAPI(bdcAPI) {
-  const http = new XMLHttpRequest();
-  http.open("GET", bdcAPI);
-  http.send();
-  http.onreadystatechange = function () {
-    if (this.readyState === 4 && this.status === 200) {
-      results = JSON.parse(this.responseText);
+  fetch(bdcAPI)
+    .then((response) => response.json())
+    .then((data) => {
+      results = data;
       console.log(results);
       hhh(results);
-    }
+    })
+    .catch((err) => console.error(err));
+}
+
+function setWeatherIcon(weatherMain) {
+  const iconMap = {
+    Clouds: "clouds.png",
+    Clear: "clear.png",
+    Rain: "rain.png",
+    Drizzle: "drizzle.png",
+    Mist: "mist.png",
   };
+  const icon = iconMap[weatherMain] || "default.png";
+  weatherIcon.src = `images/${icon}`;
 }
 
 function hhh(results) {
@@ -51,60 +64,29 @@ function hhh(results) {
   fetchWeather(results.city);
 }
 
-function fetchWeather(city) {
-  fetch(
-    "https://api.openweathermap.org/data/2.5/forecast?q=" +
-      city +
-      "&appid=126641609d1c29914e1f72a79447549e"
-  )
-    .then((response) => response.json())
-    .then((data) => {
-      const temp = data.list[0].main.temp - 273.15;
-      temperature.innerHTML = Math.floor(temp) + "°C";
-      const balance = 30;
-      if (temp > balance) {
-        statu.innerText = "The temperature is above the threshold.";
-      } else if (temp < balance) {
-        statu.innerText = "The temperature is below the threshold.";
-      } else {
-        statu.innerText = "Balance";
-      }
+async function fetchWeather(city) {
+  try {
+    const response = await fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${city}&appid=126641609d1c29914e1f72a79447549e`);
+    const data = await response.json();
 
-      if (data.list[0].weather[0].main === "Clouds") {
-        weatherIcon.src = "images/clouds.png";
-      } else if (data.list[0].weather[0].main === "Clear") {
-        weatherIcon.src = "images/clear.png";
-      } else if (data.list[0].weather[0].main === "Rain") {
-        weatherIcon.src = "images/rain.png";
-      } else if (data.list[0].weather[0].main === "Drizzle") {
-        weatherIcon.src = "images/drizzle.png";
-      } else if (data.list[0].weather[0].main === "Mist") {
-        weatherIcon.src = "images/mist.png";
-      }
-      console.log(data);
-      document.getElementById("Cname").innerHTML = city;
-      document.getElementById("wind").innerHTML =
-        data.list[0].wind.speed + "km/h";
-      function getDayName(dateString) {
-        const daysOfWeek = [
-          "Sunday",
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-        ];
-        const date = new Date(dateString);
-        const dayIndex = date.getDay();
-        return daysOfWeek[dayIndex];
-      }
+    const temp = data.list[0].main.temp - 273.15;
+    temperature.innerHTML = `${Math.floor(temp)}°C`;
 
-      const inputDate = data.list[0].dt_txt;
-      const dayName = getDayName(inputDate);
-      console.log(dayName);
-      document.getElementById("currentTime").innerHTML = dayName;
-    });
+    const balance = 30;
+    statu.innerText = temp > balance ? "The temperature is above the threshold." : temp < balance ? "The temperature is below the threshold." : "Balance";
+
+    setWeatherIcon(data.list[0].weather[0].main);
+
+    cnameElement.innerHTML = city;
+    windElement.innerHTML = `${data.list[0].wind.speed}km/h`;
+
+    const inputDate = data.list[0].dt_txt;
+    const dayName = getDayName(inputDate);
+    console.log(dayName);
+    currentTimeElement.innerHTML = dayName;
+  } catch (error) {
+    console.error(error);
+  }
 }
 
 button.addEventListener("click", function () {
@@ -120,3 +102,10 @@ button.addEventListener("click", function () {
     fetchWeather(city);
   }
 });
+
+function getDayName(dateString) {
+  const daysOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const date = new Date(dateString);
+  const dayIndex = date.getDay();
+  return daysOfWeek[dayIndex];
+}
